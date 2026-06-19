@@ -1,0 +1,108 @@
+#include <LiquidCrystal.h>
+#include <math.h>
+
+// 完全保留你原有LCD语句不动
+LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
+
+// 两路超声引脚
+const int trigA = 4;
+const int echoA = 5;
+const int trigB = 6;
+const int echoB = 2;
+
+const float SquareSide = 8.0;
+
+float dA, dB;
+float posX, posY;
+
+// 单次测距
+float getDistance(int trigPin, int echoPin)
+{
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long echoTime = pulseIn(echoPin, HIGH, 50000);
+  float dis = echoTime * 0.034 / 2.0;
+  return dis;
+}
+
+// 多次采样平均，过滤小物体抖动
+float getAvgDis(int trig, int echo, int sampleNum = 5)
+{
+  float sum = 0;
+  int validCnt = 0;
+  for(int i=0; i<sampleNum; i++)
+  {
+    float temp = getDistance(trig, echo);
+    if(temp >= 2 && temp <= 80)
+    {
+      sum += temp;
+      validCnt++;
+    }
+    delay(20);
+  }
+  if(validCnt == 0) return 999;
+  return sum / validCnt;
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(trigA, OUTPUT);
+  pinMode(echoA, INPUT);
+  pinMode(trigB, OUTPUT);
+  pinMode(echoB, INPUT);
+
+  lcd.begin(16, 4);
+  lcd.print("Sat Locator");
+  delay(1000);
+  lcd.clear();
+}
+
+void loop() {
+  dA = getAvgDis(trigA, echoA);
+  dB = getAvgDis(trigB, echoB);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  // 两路全部无效才提示无物体
+  if((dA > 80 || dA < 2) && (dB > 80 || dB < 2))
+  {
+    lcd.print("No Valid Obj");
+  }
+  else
+  {
+    // 单路失效用另一路补偿
+    if(dA < 2 || dA > 80) dA = dB;
+    if(dB < 2 || dB > 80) dB = dA;
+
+    posX = (SquareSide*SquareSide + dA*dA - dB*dB) / (2 * SquareSide);
+
+    // 关键：限制X范围 0 ~ 8，杜绝负数、超8cm异常值
+    if(posX < 0) posX = 0;
+    if(posX > SquareSide) posX = SquareSide;
+
+    float inner = dA*dA - posX*posX;
+    if(inner < 0) inner = 0;
+    posY = sqrt(inner);
+
+    lcd.print("X:");
+    lcd.print(posX, 1);
+    lcd.print(" Y:");
+    lcd.print(posY, 1);
+  }
+
+  lcd.setCursor(0, 1);
+  lcd.print("dA:");
+  lcd.print(dA, 1);
+  lcd.print(" dB:");
+  lcd.print(dB, 1);
+
+  Serial.print("X=");Serial.print(posX,1);
+  Serial.print(" Y=");Serial.print(posY,1);
+  Serial.print(" dA=");Serial.print(dA,1);
+  Serial.print(" dB=");Serial.println(dB,1);
+
+  delay(500);
+}
