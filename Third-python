@@ -1,0 +1,54 @@
+import serial
+import matplotlib.pyplot as plt
+import numpy as np
+
+# =========这里改成你自己的串口设备管理器里的COM号========
+COM_PORT = "COM6"
+BAUD_RATE = 9600
+MAX_DIST = 80
+# ======================================================
+
+ser = serial.Serial(COM_PORT, BAUD_RATE, timeout=0.1)
+
+# 开启动态画布
+plt.ion()
+fig = plt.figure(figsize=(7, 7))
+ax = fig.add_subplot(111, polar=True)
+ax.set_ylim(0, MAX_DIST)
+ax.set_theta_zero_location("N")   # 0度朝上
+ax.set_theta_direction(-1)       # 顺时针角度增加
+ax.set_title("HC-SR04 Radar Scanner", pad=20)
+
+angle_data = []
+dist_data = []
+
+while True:
+    try:
+        line = ser.readline().decode("utf-8").strip()
+        if not line or "," not in line:
+            continue
+        angle_str, dist_str = line.split(",")
+        angle_deg = float(angle_str)
+        distance = float(dist_str)
+
+        # 角度转弧度
+        rad = np.radians(angle_deg)
+        angle_data.append(rad)
+        dist_data.append(distance)
+
+        # 限制数据长度，防止卡顿
+        if len(angle_data) > 1000:
+            angle_data.pop(0)
+            dist_data.pop(0)
+
+        # 刷新雷达画面
+        ax.clear()
+        ax.set_ylim(0, MAX_DIST)
+        ax.set_theta_zero_location("N")
+        ax.set_theta_direction(-1)
+        ax.plot(angle_data, dist_data, color="red", linewidth=1)
+        ax.fill(angle_data, dist_data, alpha=0.2, color="orange")
+        plt.draw()
+        plt.pause(0.01)
+    except Exception as e:
+        pass
