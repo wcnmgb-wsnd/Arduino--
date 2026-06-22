@@ -1,0 +1,61 @@
+#include <Servo.h>
+
+Servo radarServo;
+const int servoPin = 9;
+const int trigPin = 4;
+const int echoPin = 5;
+
+// 修正：最小0度，最大90度
+const int angleMin = 45;
+const int angleMax = 135;
+const int scanStep = 3;    // 步长加大一点，减少卡顿
+const float maxDetectRange = 80.0;
+
+float getDistance()
+{
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long echoTime = pulseIn(echoPin, HIGH, 40000);
+  float dis = echoTime * 0.034 / 2.0;
+  if (dis < 2 || dis > maxDetectRange)
+    dis = maxDetectRange;
+  return dis;
+}
+
+void setup()
+{
+  Serial.begin(9600);
+  radarServo.attach(servoPin);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  // 开机先走到中间，缓冲启动
+  radarServo.write(90);
+  delay(500);
+}
+
+void loop()
+{
+  // 从左0° → 右90°
+  for (int ang = angleMin; ang <= angleMax; ang += scanStep)
+  {
+    radarServo.write(ang);
+    delay(150);  // 更长延时，保证舵机走到位再测距
+    float dist = getDistance();
+    Serial.print(ang);
+    Serial.print(",");
+    Serial.println(dist);
+  }
+  // 从右90° → 左0°
+  for (int ang = angleMax; ang >= angleMin; ang -= scanStep)
+  {
+    radarServo.write(ang);
+    delay(150);
+    float dist = getDistance();
+    Serial.print(ang);
+    Serial.print(",");
+    Serial.println(dist);
+  }
+}
